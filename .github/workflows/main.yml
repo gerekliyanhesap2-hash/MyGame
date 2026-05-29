@@ -1,3 +1,4 @@
+cat > /workspaces/MyGame/.github/workflows/build.yml << 'EOF'
 name: Build APK
 
 on:
@@ -9,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
@@ -17,17 +18,4 @@ jobs:
         sudo apt-get install -y python3-pip git zip unzip autoconf automake libtool pkg-config build-essential libffi-dev libssl-dev openjdk-17-jdk
 
     - name: Install buildozer
-      run: |
-        pip3 install buildozer
-        pip3 install "cython<3.0"
-
-    - name: Build APK
-      run: |
-        git config --global --add safe.directory $GITHUB_WORKSPACE
-        buildozer android debug
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v3
-      with:
-        name: blockpuzzle-apk
-        path: bin/*.apk
+      ru

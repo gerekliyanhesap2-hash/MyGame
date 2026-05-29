@@ -1,0 +1,33 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-pip git zip unzip autoconf automake libtool pkg-config build-essential libffi-dev libssl-dev openjdk-17-jdk
+
+    - name: Install buildozer
+      run: |
+        pip3 install buildozer
+        pip3 install "cython<3.0"
+
+    - name: Build APK
+      run: |
+        git config --global --add safe.directory $GITHUB_WORKSPACE
+        buildozer android debug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: blockpuzzle-apk
+        path: bin/*.apk

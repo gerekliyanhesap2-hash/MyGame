@@ -5,23 +5,30 @@ import random
 import os
 import math
 
+# ─── ANDROID DOSYA YOLU ──────────────────────────────────────────────────────
+try:
+    from android.storage import app_storage_path
+    VERI_KLASOR = app_storage_path()
+except:
+    VERI_KLASOR = os.path.dirname(os.path.abspath(__file__))
+
+def veri_yol(dosya):
+    return os.path.join(VERI_KLASOR, dosya)
+
 # ─── BAŞLATMA ────────────────────────────────────────────────────────────────
 pygame.init()
 pygame.mixer.init()
 
-# Tam ekran – canvas/ölçekleme YOK, doğrudan telefon çözünürlüğü
 ekran = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 W, H = ekran.get_size()
-pygame.display.set_caption("LS Studio – Block Puzzle Ultimate")
+pygame.display.set_caption("LS Studio - Block Puzzle Ultimate")
 
-# Oransal tasarım sabiti (her şey bu S değeriyle çarpılır)
-# Referans: 450x800 tasarım → telefon ekranına oranla scale
-S  = min(W / 450, H / 800)       # uniform scale
-CX = W // 2                       # ekran merkezi X
+S  = min(W / 450, H / 800)
+CX = W // 2
 
-def sc(v):   return int(v * S)    # boyut ölçekle
-def sx(v):   return int(CX + (v - 225) * S)   # X koordinat (450 genişliğine göre ortalı)
-def sy(v):   return int(v * S)    # Y koordinat (üstten)
+def sc(v):   return max(1, int(v * S))
+def sx(v):   return int(CX + (v - 225) * S)
+def sy(v):   return int(v * S)
 def sr(x,y,w,h): return pygame.Rect(sx(x), sy(y), sc(w), sc(h))
 
 # ─── DİL SİSTEMİ ─────────────────────────────────────────────────────────────
@@ -29,28 +36,28 @@ dil = "TR"
 
 METIN = {
     "TR": {
-        "baslik":"BLOCK PUZZLE", "klasik_mod":"▶  Klasik Mod",
-        "tema_magaza":"◈  Tema Mağazası", "ayarlar":"⚙  Ayarlar",
-        "geri":"← Geri", "magaza_baslik":"TEMA MAĞAZASI",
-        "aktif":"✦ AKTİF", "sec":"► Seç", "bitti":"BİTTİ",
-        "skor":"Skor", "en_iyi":"En İyi", "lobiye_don":"↩  Lobiye Dön",
-        "ayarlar_baslik":"AYARLAR", "muzik":"🎵 Oyun Müziği",
-        "muzik_ac":"AÇIK", "muzik_kapat":"KAPALI",
-        "ses":"🔊 Ses Efektleri", "dil_sec":"🌐 Dil / Language",
-        "level":"LV", "level_up":"SEVİYE ATLADI!", "studio":"LS Studio™",
-        "muzik_yok":"music.mp3 bulunamadı – oyun klasörüne ekleyin",
+        "baslik":"BLOCK PUZZLE", "klasik_mod":">  Klasik Mod",
+        "tema_magaza":"*  Tema Magazasi", "ayarlar":"Ayarlar",
+        "geri":"< Geri", "magaza_baslik":"TEMA MAGAZASI",
+        "aktif":"* AKTIF", "sec":"> Sec", "bitti":"BITTI",
+        "skor":"Skor", "en_iyi":"En Iyi", "lobiye_don":"Ana Menu",
+        "ayarlar_baslik":"AYARLAR", "muzik":"Oyun Muzigi",
+        "muzik_ac":"ACIK", "muzik_kapat":"KAPALI",
+        "ses":"Ses Efektleri", "dil_sec":"Dil / Language",
+        "level":"LV", "level_up":"SEVIYE ATLADI!", "studio":"LS Studio",
+        "muzik_yok":"music.mp3 bulunamadi",
     },
     "EN": {
-        "baslik":"BLOCK PUZZLE", "klasik_mod":"▶  Classic Mode",
-        "tema_magaza":"◈  Theme Shop", "ayarlar":"⚙  Settings",
-        "geri":"← Back", "magaza_baslik":"THEME SHOP",
-        "aktif":"✦ ACTIVE", "sec":"► Select", "bitti":"GAME OVER",
-        "skor":"Score", "en_iyi":"Best", "lobiye_don":"↩  Main Menu",
-        "ayarlar_baslik":"SETTINGS", "muzik":"🎵 Game Music",
+        "baslik":"BLOCK PUZZLE", "klasik_mod":">  Classic Mode",
+        "tema_magaza":"*  Theme Shop", "ayarlar":"Settings",
+        "geri":"< Back", "magaza_baslik":"THEME SHOP",
+        "aktif":"* ACTIVE", "sec":"> Select", "bitti":"GAME OVER",
+        "skor":"Score", "en_iyi":"Best", "lobiye_don":"Main Menu",
+        "ayarlar_baslik":"SETTINGS", "muzik":"Game Music",
         "muzik_ac":"ON", "muzik_kapat":"OFF",
-        "ses":"🔊 Sound FX", "dil_sec":"🌐 Language / Dil",
-        "level":"LV", "level_up":"LEVEL UP!", "studio":"LS Studio™",
-        "muzik_yok":"music.mp3 not found – place it in the game folder",
+        "ses":"Sound FX", "dil_sec":"Language / Dil",
+        "level":"LV", "level_up":"LEVEL UP!", "studio":"LS Studio",
+        "muzik_yok":"music.mp3 not found",
     }
 }
 def M(k): return METIN[dil].get(k, k)
@@ -61,9 +68,14 @@ ses_efekt_acik = True
 
 # ─── SES ─────────────────────────────────────────────────────────────────────
 def ses_yukle(f):
+    tam_yol = veri_yol(f)
+    if os.path.exists(tam_yol):
+        try: return pygame.mixer.Sound(tam_yol)
+        except: pass
+    # APK icindeki assets klasorunden de dene
     if os.path.exists(f):
         try: return pygame.mixer.Sound(f)
-        except: return None
+        except: pass
     return None
 
 def ses_cal(s):
@@ -78,20 +90,23 @@ ses_bitis = ses_yukle("gameover.wav")
 MUZIK_DOSYA = "music.mp3"
 
 def muzik_guncelle():
-    if muzik_acik and os.path.exists(MUZIK_DOSYA):
-        try:
-            if not pygame.mixer.music.get_busy():
-                pygame.mixer.music.load(MUZIK_DOSYA)
-                pygame.mixer.music.set_volume(0.4)
-                pygame.mixer.music.play(-1)
-        except: pass
+    if muzik_acik:
+        tam_yol = veri_yol(MUZIK_DOSYA)
+        kaynak = tam_yol if os.path.exists(tam_yol) else (MUZIK_DOSYA if os.path.exists(MUZIK_DOSYA) else None)
+        if kaynak:
+            try:
+                if not pygame.mixer.music.get_busy():
+                    pygame.mixer.music.load(kaynak)
+                    pygame.mixer.music.set_volume(0.4)
+                    pygame.mixer.music.play(-1)
+            except: pass
     else:
         try: pygame.mixer.music.stop()
         except: pass
 
 # ─── TEMALAR ─────────────────────────────────────────────────────────────────
 TEMALAR = {
-    "Tüylü Küp":     {"fiyat":0,    "satin":True,
+    "Tuylu Kup":     {"fiyat":0,    "satin":True,
                       "bg_top":(20,10,40),  "bg_bot":(60,20,90),
                       "b1":(249,115,22), "b2":(234,179,8),  "glow":(249,115,22), "accent":(254,240,138)},
     "Neon Siber":    {"fiyat":5000, "satin":False,
@@ -103,16 +118,16 @@ TEMALAR = {
     "Kozmik Galaksi":{"fiyat":5000, "satin":False,
                       "bg_top":(5,0,25),   "bg_bot":(30,10,60),
                       "b1":(147,51,234), "b2":(79,70,229),  "glow":(168,85,247), "accent":(216,180,254)},
-    "Erimiş Lav":    {"fiyat":5000, "satin":False,
+    "Erimis Lav":    {"fiyat":5000, "satin":False,
                       "bg_top":(20,0,0),   "bg_bot":(50,10,0),
                       "b1":(239,68,68),  "b2":(249,115,22), "glow":(255,80,0),   "accent":(253,186,116)},
-    "Buzul Çağı":    {"fiyat":5000, "satin":False,
+    "Buzul Cagi":    {"fiyat":5000, "satin":False,
                       "bg_top":(0,20,50),  "bg_bot":(10,60,100),
                       "b1":(56,189,248), "b2":(14,165,233), "glow":(56,189,248), "accent":(186,230,253)},
-    "Antik Mısır":   {"fiyat":5000, "satin":False,
+    "Antik Misir":   {"fiyat":5000, "satin":False,
                       "bg_top":(30,20,0),  "bg_bot":(70,50,0),
                       "b1":(202,138,4),  "b2":(161,98,7),   "glow":(250,204,21), "accent":(253,224,71)},
-    "Altın Lüks":    {"fiyat":5000, "satin":False,
+    "Altin Luks":    {"fiyat":5000, "satin":False,
                       "bg_top":(10,8,0),   "bg_bot":(30,20,0),
                       "b1":(250,204,21), "b2":(194,65,12),  "glow":(250,204,21), "accent":(254,240,138)},
     "Grafiti Sokak": {"fiyat":5000, "satin":False,
@@ -121,19 +136,19 @@ TEMALAR = {
     "Derin Okyanus": {"fiyat":5000, "satin":False,
                       "bg_top":(0,15,30),  "bg_bot":(5,50,70),
                       "b1":(20,184,166), "b2":(6,182,212),  "glow":(20,184,166), "accent":(153,246,228)},
-    "Çizgi Roman":   {"fiyat":5000, "satin":False,
+    "Cizgi Roman":   {"fiyat":5000, "satin":False,
                       "bg_top":(30,0,10),  "bg_bot":(80,10,30),
                       "b1":(251,113,133),"b2":(253,186,116),"glow":(251,113,133),"accent":(254,205,211)},
-    "Zombi İstilası":{"fiyat":5000, "satin":False,
+    "Zombi Istilasi":{"fiyat":5000, "satin":False,
                       "bg_top":(5,15,5),   "bg_bot":(15,35,10),
                       "b1":(101,163,13), "b2":(22,101,52),  "glow":(132,204,22), "accent":(187,247,208)},
-    "Doğa & Orman":  {"fiyat":5000, "satin":False,
+    "Doga Orman":    {"fiyat":5000, "satin":False,
                       "bg_top":(0,20,10),  "bg_bot":(5,60,30),
                       "b1":(132,204,22), "b2":(34,197,94),  "glow":(132,204,22), "accent":(187,247,208)},
-    "Şeker Diyarı":  {"fiyat":5000, "satin":False,
+    "Seker Diyari":  {"fiyat":5000, "satin":False,
                       "bg_top":(40,0,30),  "bg_bot":(90,10,70),
                       "b1":(244,114,182),"b2":(192,38,211), "glow":(244,114,182),"accent":(249,168,212)},
-    "Geleceğin Mek": {"fiyat":5000, "satin":False,
+    "Gelecek Mek":   {"fiyat":5000, "satin":False,
                       "bg_top":(10,10,40), "bg_bot":(25,25,80),
                       "b1":(129,140,248),"b2":(99,102,241), "glow":(129,140,248),"accent":(199,210,254)},
 }
@@ -177,6 +192,7 @@ def draw_cube(surf, x, y, boyut, c1, c2, gw, tutuldu=False):
 
 def glass(surf, rect, a=60, ba=100, renk=(255,255,255), r=16):
     x,y,w,h = rect
+    if w <= 0 or h <= 0: return
     g = pygame.Surface((w,h), pygame.SRCALPHA)
     pygame.draw.rect(g,(*renk,a),(0,0,w,h),border_radius=r)
     pygame.draw.rect(g,(*renk,ba),(0,0,w,h),width=1,border_radius=r)
@@ -200,7 +216,7 @@ def draw_toggle(surf, rect, aktif, accent):
     x,y,w,h = rect.x,rect.y,rect.width,rect.height
     renk = accent if aktif else (80,90,110)
     glass(surf,(x,y,w,h),a=80 if aktif else 40,ba=180 if aktif else 80,renk=renk,r=h//2)
-    dr = h//2-sc(3)
+    dr = max(1, h//2-sc(3))
     dx = x+w-dr-sc(5) if aktif else x+dr+sc(5)
     pygame.draw.circle(surf,(255,255,255),(dx,y+h//2),dr)
 
@@ -229,15 +245,14 @@ def parca_ciz(surf):
         surf.blit(ps,(int(p["x"])-b,int(p["y"])-b))
     for p in olecek: parcalar.remove(p)
 
-# ─── FONT (ölçekli) ──────────────────────────────────────────────────────────
+# ─── FONT ────────────────────────────────────────────────────────────────────
 def mk_font(boyut):
-    try:    return pygame.font.SysFont("segoeuisymbol", sc(boyut))
-    except: return pygame.font.Font(None, sc(boyut))
+    return pygame.font.Font(None, sc(boyut))
 
-fk = mk_font(21)   # küçük
-fo = mk_font(30)   # orta
-fb = mk_font(48)   # büyük
-fd = mk_font(100)  # dev
+fk = mk_font(21)
+fo = mk_font(30)
+fb = mk_font(48)
+fd = mk_font(100)
 
 # ─── IZGARA ──────────────────────────────────────────────────────────────────
 SATIR = 8; SUTUN = 8
@@ -265,40 +280,40 @@ rozet_bildirim=[]
 level_up_goster=False; level_up_t=0
 
 ROZETLER=[
-    {"id":"ilk_adim","emoji":"★","kazanildi":False,"kosul":lambda s,l,x,r:r>=1},
-    {"id":"yuz_skor","emoji":"◆","kazanildi":False,"kosul":lambda s,l,x,r:s>=100},
-    {"id":"bin_skor","emoji":"▲","kazanildi":False,"kosul":lambda s,l,x,r:s>=1000},
-    {"id":"bes_bin", "emoji":"◈","kazanildi":False,"kosul":lambda s,l,x,r:s>=5000},
-    {"id":"lvl5",    "emoji":"✦","kazanildi":False,"kosul":lambda s,l,x,r:l>=5},
-    {"id":"lvl10",   "emoji":"✶","kazanildi":False,"kosul":lambda s,l,x,r:l>=10},
-    {"id":"lvl20",   "emoji":"♛","kazanildi":False,"kosul":lambda s,l,x,r:l>=20},
-    {"id":"xp_5k",   "emoji":"♦","kazanildi":False,"kosul":lambda s,l,x,r:x>=5000},
-    {"id":"xp_20k",  "emoji":"♚","kazanildi":False,"kosul":lambda s,l,x,r:x>=20000},
-    {"id":"rekor_2k","emoji":"♜","kazanildi":False,"kosul":lambda s,l,x,r:r>=2000},
+    {"id":"ilk_adim","emoji":"*","kazanildi":False,"kosul":lambda s,l,x,r:r>=1},
+    {"id":"yuz_skor","emoji":"#","kazanildi":False,"kosul":lambda s,l,x,r:s>=100},
+    {"id":"bin_skor","emoji":"^","kazanildi":False,"kosul":lambda s,l,x,r:s>=1000},
+    {"id":"bes_bin", "emoji":"@","kazanildi":False,"kosul":lambda s,l,x,r:s>=5000},
+    {"id":"lvl5",    "emoji":"+","kazanildi":False,"kosul":lambda s,l,x,r:l>=5},
+    {"id":"lvl10",   "emoji":"~","kazanildi":False,"kosul":lambda s,l,x,r:l>=10},
+    {"id":"lvl20",   "emoji":"!","kazanildi":False,"kosul":lambda s,l,x,r:l>=20},
+    {"id":"xp_5k",   "emoji":"&","kazanildi":False,"kosul":lambda s,l,x,r:x>=5000},
+    {"id":"xp_20k",  "emoji":"%","kazanildi":False,"kosul":lambda s,l,x,r:x>=20000},
+    {"id":"rekor_2k","emoji":"$","kazanildi":False,"kosul":lambda s,l,x,r:r>=2000},
 ]
 
 # ─── VERİ YÜKLEMESİ ──────────────────────────────────────────────────────────
-if os.path.exists("rekor.txt"):
-    try: rekor=int(open("rekor.txt").read())
+if os.path.exists(veri_yol("rekor.txt")):
+    try: rekor=int(open(veri_yol("rekor.txt")).read())
     except: pass
-if os.path.exists("shop_data.txt"):
+if os.path.exists(veri_yol("shop_data.txt")):
     try:
-        sat=open("shop_data.txt").read().splitlines()
+        sat=open(veri_yol("shop_data.txt")).read().splitlines()
         if sat: coin=int(sat[0])
         for k in TEMALAR:
             if k in sat: TEMALAR[k]["satin"]=True
         if sat and sat[-1] in TEMALAR: aktif_tema=sat[-1]
     except: pass
-if os.path.exists("xp_data.txt"):
+if os.path.exists(veri_yol("xp_data.txt")):
     try:
-        xd=open("xp_data.txt").read().splitlines()
+        xd=open(veri_yol("xp_data.txt")).read().splitlines()
         xp=int(xd[0]); level=int(xd[1]); toplam_xp=int(xd[2])
         for roz in ROZETLER:
             if roz["id"] in xd: roz["kazanildi"]=True
     except: pass
-if os.path.exists("ayarlar.txt"):
+if os.path.exists(veri_yol("ayarlar.txt")):
     try:
-        ad=open("ayarlar.txt").read().splitlines()
+        ad=open(veri_yol("ayarlar.txt")).read().splitlines()
         muzik_acik=ad[0]=="True"; ses_efekt_acik=ad[1]=="True"
         if len(ad)>2 and ad[2] in ("TR","EN"): dil=ad[2]
     except: pass
@@ -309,18 +324,20 @@ muzik_guncelle()
 def xp_gereken(l): return l*500
 
 def kaydet():
-    open("rekor.txt","w").write(str(rekor))
-    with open("shop_data.txt","w") as f:
-        f.write(f"{coin}\n")
-        for k,v in TEMALAR.items():
-            if v["satin"]: f.write(f"{k}\n")
-        f.write(aktif_tema)
-    with open("xp_data.txt","w") as f:
-        f.write(f"{xp}\n{level}\n{toplam_xp}\n")
-        for roz in ROZETLER:
-            if roz["kazanildi"]: f.write(f"{roz['id']}\n")
-    with open("ayarlar.txt","w") as f:
-        f.write(f"{muzik_acik}\n{ses_efekt_acik}\n{dil}\n")
+    try:
+        open(veri_yol("rekor.txt"),"w").write(str(rekor))
+        with open(veri_yol("shop_data.txt"),"w") as f:
+            f.write(f"{coin}\n")
+            for k,v in TEMALAR.items():
+                if v["satin"]: f.write(f"{k}\n")
+            f.write(aktif_tema)
+        with open(veri_yol("xp_data.txt"),"w") as f:
+            f.write(f"{xp}\n{level}\n{toplam_xp}\n")
+            for roz in ROZETLER:
+                if roz["kazanildi"]: f.write(f"{roz['id']}\n")
+        with open(veri_yol("ayarlar.txt"),"w") as f:
+            f.write(f"{muzik_acik}\n{ses_efekt_acik}\n{dil}\n")
+    except: pass
 
 def rozet_kontrol(s):
     for roz in ROZETLER:
@@ -356,7 +373,6 @@ def yeni_blok(idx):
     sekil=random.choice(gec) if gec else random.choice(SEKILLER)
     km=random.uniform(0.2,0.8)
     c1=lerp(tv["b1"],tv["b2"],km); c2=lerp(tv["b1"],tv["b2"],1-km)
-    # Alt blok pozisyonları – 3 blok yan yana, ekran genişliğine orantılı
     slot_w = W // 3
     ox = slot_w*idx + slot_w//2 - sc(22)
     oy = sy(648)
@@ -392,18 +408,26 @@ def satir_kontrol():
         skor+=n*100; coin+=n*5
     return n
 
-# ─── UI RECT (ölçekli, ortalı) ───────────────────────────────────────────────
-# Ana menü butonları
+# ─── UI RECT ─────────────────────────────────────────────────────────────────
 BTN_CLASSIC  = sr(90,320,270,58)
 BTN_SHOP     = sr(90,398,270,58)
 BTN_SETTINGS = sr(90,476,270,58)
 BTN_LOBI     = sr(100,500,250,62)
 BTN_GERI     = sr(25,38,90,40)
-# Ayarlar toggleları
 TGL_MUZIK    = sr(290,230,80,38)
 TGL_SES      = sr(290,310,80,38)
 BTN_TR       = sr(130,388,80,42)
 BTN_EN       = sr(240,388,80,42)
+
+# ─── TOUCH DESTEĞI ───────────────────────────────────────────────────────────
+# Android'de hem MOUSEBUTTONDOWN hem FINGERDOWN gelir
+# pygame-sdl2 icin touch koordinatlari normalize edilmis olabilir
+def normalize_pos(pos):
+    x, y = pos
+    # Eger koordinatlar 0-1 arasindaysa (normalize) ekran boyutuna cevir
+    if 0 <= x <= 1 and 0 <= y <= 1:
+        return (int(x * W), int(y * H))
+    return (int(x), int(y))
 
 saat = pygame.time.Clock()
 
@@ -418,12 +442,47 @@ while True:
     for e in pygame.event.get():
         if e.type == pygame.QUIT:
             kaydet(); pygame.quit(); sys.exit()
+
         if e.type == pygame.KEYDOWN:
             if e.key in (pygame.K_ESCAPE, pygame.K_AC_BACK):
                 if oyun_durumu in ("GAME","SHOP","SETTINGS","GAME_OVER"):
                     oyun_durumu="MAIN_MENU"; kaydet()
                 else:
                     kaydet(); pygame.quit(); sys.exit()
+
+        # Touch olaylarini mouse olayina donustur
+        if hasattr(pygame, 'FINGERDOWN') and e.type == pygame.FINGERDOWN:
+            fare = normalize_pos((e.x * W, e.y * H))
+            e_pos = fare
+        elif hasattr(pygame, 'FINGERUP') and e.type == pygame.FINGERUP:
+            e_pos = normalize_pos((e.x * W, e.y * H))
+            # Blok birakma simulasyonu
+            if oyun_durumu=="GAME" and secilen:
+                secilen["tutuldu"]=False
+                sc2=round((secilen["x"]-IZG_X)/KARE)
+                sr2=round((secilen["y"]-IZG_Y)/KARE)
+                if sigar(secilen["sekil"],sr2,sc2):
+                    ses_cal(ses_koy); kn=0
+                    for dr in range(len(secilen["sekil"])):
+                        for dc in range(len(secilen["sekil"][dr])):
+                            if secilen["sekil"][dr][dc]:
+                                oyun_alani[sr2+dr][sc2+dc]=(secilen["r1"],secilen["r2"],secilen["glow"])
+                                kn+=1
+                    secilen["aktif"]=False; skor+=kn*10; coin+=max(0,int(kn*0.25))
+                    if random.random()<0.25: coin+=1
+                    satir_kontrol()
+                    if skor>rekor: rekor=skor
+                else:
+                    secilen["x"]=secilen["ox"]; secilen["y"]=secilen["oy"]
+                secilen=None
+                if all(not b["aktif"] for b in alttaki):
+                    alttaki=[yeni_blok(0),yeni_blok(1),yeni_blok(2)]
+            continue
+        elif hasattr(pygame, 'FINGERMOTION') and e.type == pygame.FINGERMOTION:
+            fare = normalize_pos((e.x * W, e.y * H))
+            if oyun_durumu=="GAME" and secilen and secilen["tutuldu"]:
+                secilen["x"]=fare[0]-fark_x; secilen["y"]=fare[1]-fark_y
+            continue
 
         if e.type == pygame.MOUSEBUTTONDOWN:
             if oyun_durumu=="SHOP":
@@ -433,49 +492,46 @@ while True:
                     shop_scroll_y=max(mn,shop_scroll_y-sc(30))
 
             if e.button==1:
-                # ANA MENÜ
+                tpos = e.pos
+
                 if oyun_durumu=="MAIN_MENU":
-                    if BTN_CLASSIC.collidepoint(fare):
+                    if BTN_CLASSIC.collidepoint(tpos):
                         oyun_alani=[[None]*SUTUN for _ in range(SATIR)]
                         skor=son_skor=0
                         alttaki=[yeni_blok(0),yeni_blok(1),yeni_blok(2)]
                         parcalar.clear(); oyun_durumu="GAME"
-                    elif BTN_SHOP.collidepoint(fare): oyun_durumu="SHOP"
-                    elif BTN_SETTINGS.collidepoint(fare): oyun_durumu="SETTINGS"
+                    elif BTN_SHOP.collidepoint(tpos): oyun_durumu="SHOP"
+                    elif BTN_SETTINGS.collidepoint(tpos): oyun_durumu="SETTINGS"
 
-                # MAĞAZA
                 elif oyun_durumu=="SHOP":
-                    if BTN_GERI.collidepoint(fare): oyun_durumu="MAIN_MENU"; kaydet()
+                    if BTN_GERI.collidepoint(tpos): oyun_durumu="MAIN_MENU"; kaydet()
                     else:
                         by2=sy(225)+shop_scroll_y
-                        for i,(tid,tv) in enumerate(TEMALAR.items()):
+                        for i,(tid,tv2) in enumerate(TEMALAR.items()):
                             row=pygame.Rect(sx(25),by2+i*TEMA_H,sc(400),sc(78))
-                            if row.collidepoint(fare) and sy(205)<row.centery<sy(730):
-                                if tv["satin"]: aktif_tema=tid
-                                elif coin>=tv["fiyat"]:
-                                    coin-=tv["fiyat"]; tv["satin"]=True; aktif_tema=tid
+                            if row.collidepoint(tpos) and sy(205)<row.centery<sy(730):
+                                if tv2["satin"]: aktif_tema=tid
+                                elif coin>=tv2["fiyat"]:
+                                    coin-=tv2["fiyat"]; tv2["satin"]=True; aktif_tema=tid
 
-                # AYARLAR
                 elif oyun_durumu=="SETTINGS":
-                    if BTN_GERI.collidepoint(fare): oyun_durumu="MAIN_MENU"; kaydet()
-                    elif TGL_MUZIK.collidepoint(fare):
+                    if BTN_GERI.collidepoint(tpos): oyun_durumu="MAIN_MENU"; kaydet()
+                    elif TGL_MUZIK.collidepoint(tpos):
                         muzik_acik=not muzik_acik; muzik_guncelle(); kaydet()
-                    elif TGL_SES.collidepoint(fare):
+                    elif TGL_SES.collidepoint(tpos):
                         ses_efekt_acik=not ses_efekt_acik; kaydet()
-                    elif BTN_TR.collidepoint(fare): dil="TR"; kaydet()
-                    elif BTN_EN.collidepoint(fare): dil="EN"; kaydet()
+                    elif BTN_TR.collidepoint(tpos): dil="TR"; kaydet()
+                    elif BTN_EN.collidepoint(tpos): dil="EN"; kaydet()
 
-                # GAME OVER
                 elif oyun_durumu=="GAME_OVER":
-                    if BTN_LOBI.collidepoint(fare): oyun_durumu="MAIN_MENU"
+                    if BTN_LOBI.collidepoint(tpos): oyun_durumu="MAIN_MENU"
 
-                # OYUN – blok tut
                 elif oyun_durumu=="GAME":
                     for b in alttaki:
                         if not b["aktif"]: continue
                         k2=sc(22)
                         bw=len(b["sekil"][0])*k2; bh=len(b["sekil"])*k2
-                        if pygame.Rect(b["x"],b["y"],bw,bh).collidepoint(fare):
+                        if pygame.Rect(b["x"],b["y"],bw,bh).collidepoint(tpos):
                             ses_cal(ses_tut); b["tutuldu"]=True; secilen=b
                             fark_x=(len(b["sekil"][0])*KARE)//2
                             fark_y=(len(b["sekil"])*KARE)//2
@@ -509,14 +565,7 @@ while True:
     # ── ÇİZİM ────────────────────────────────────────────────────────────────
     tv=TEMALAR[aktif_tema]
 
-    # Gradient arka plan – tam ekran
     grad_rect(ekran,(0,0,W,H),tv["bg_top"],tv["bg_bot"])
-
-    # Hafif noise
-    ns=pygame.Surface((W,H),pygame.SRCALPHA)
-    for yy in range(0,H,max(1,sc(4))):
-        pygame.draw.line(ns,(255,255,255,random.randint(0,5)),(0,yy),(W,yy))
-    ekran.blit(ns,(0,0))
 
     # ── SPLASH ───────────────────────────────────────────────────────────────
     if oyun_durumu=="SPLASH":
@@ -528,8 +577,9 @@ while True:
             gs=pygame.Surface((rad*2,rad*2),pygame.SRCALPHA)
             pygame.draw.circle(gs,(*tv["glow"],a2),(rad,rad),rad)
             ekran.blit(gs,(CX-rad,H//2-rad))
-        t1=fd.render("LS",True,(*tv["accent"],alf))
-        t2=fb.render("STUDIO",True,(220,220,255,alf))
+        t1=fd.render("LS",True,tv["accent"])
+        t2=fb.render("STUDIO",True,(220,220,255))
+        t1.set_alpha(alf); t2.set_alpha(alf)
         tr=pygame.transform.rotate(t1,sal)
         ekran.blit(tr,tr.get_rect(center=(CX,H//2-sc(30))))
         ekran.blit(t2,t2.get_rect(center=(CX,H//2+sc(60))))
@@ -537,13 +587,9 @@ while True:
 
     # ── ANA MENÜ ─────────────────────────────────────────────────────────────
     elif oyun_durumu=="MAIN_MENU":
-        for gw in [6,4,2]:
-            gt=fb.render(M("baslik"),True,tv["glow"]); gt.set_alpha(40)
-            ekran.blit(gt,gt.get_rect(center=(CX+gw,sy(165))))
-            ekran.blit(gt,gt.get_rect(center=(CX-gw,sy(165))))
         bas=fb.render(M("baslik"),True,(240,245,255))
         ekran.blit(bas,bas.get_rect(center=(CX,sy(165))))
-        alt=fk.render(M("studio"),True,(*tv["accent"],180))
+        alt=fk.render(M("studio"),True,tv["accent"])
         ekran.blit(alt,alt.get_rect(center=(CX,sy(210))))
         for i in range(5):
             a=su*0.4+i*1.25
@@ -553,7 +599,7 @@ while True:
         neon_btn(ekran,BTN_CLASSIC, M("klasik_mod"), fo,BTN_CLASSIC.collidepoint(fare), accent=tv["accent"])
         neon_btn(ekran,BTN_SHOP,    M("tema_magaza"),fo,BTN_SHOP.collidepoint(fare),    accent=tv["accent"])
         neon_btn(ekran,BTN_SETTINGS,M("ayarlar"),    fo,BTN_SETTINGS.collidepoint(fare),accent=tv["accent"])
-        ct=fk.render(f"◈ {coin} Coin",True,tv["accent"])
+        ct=fk.render(f"* {coin} Coin",True,tv["accent"])
         ekran.blit(ct,ct.get_rect(center=(CX,sy(558))))
 
     # ── AYARLAR ──────────────────────────────────────────────────────────────
@@ -565,7 +611,6 @@ while True:
 
         glass(ekran,(sx(20),sy(205),sc(410),sy(420)),a=40,ba=80,renk=(200,220,255),r=sc(20))
 
-        # Müzik satırı
         glass(ekran,(sx(30),sy(218),sc(390),sc(66)),a=30,renk=(255,255,255),r=sc(14))
         ekran.blit(fo.render(M("muzik"),True,(220,230,255)),(sx(50),sy(238)))
         md=fk.render(M("muzik_ac") if muzik_acik else M("muzik_kapat"),True,
@@ -573,7 +618,6 @@ while True:
         ekran.blit(md,md.get_rect(midright=(TGL_MUZIK.left-sc(8),TGL_MUZIK.centery)))
         draw_toggle(ekran,TGL_MUZIK,muzik_acik,tv["accent"])
 
-        # Ses satırı
         glass(ekran,(sx(30),sy(298),sc(390),sc(66)),a=30,renk=(255,255,255),r=sc(14))
         ekran.blit(fo.render(M("ses"),True,(220,230,255)),(sx(50),sy(318)))
         sd=fk.render(M("muzik_ac") if ses_efekt_acik else M("muzik_kapat"),True,
@@ -581,7 +625,6 @@ while True:
         ekran.blit(sd,sd.get_rect(midright=(TGL_SES.left-sc(8),TGL_SES.centery)))
         draw_toggle(ekran,TGL_SES,ses_efekt_acik,tv["accent"])
 
-        # Dil satırı
         glass(ekran,(sx(30),sy(378),sc(390),sc(80)),a=30,renk=(255,255,255),r=sc(14))
         ekran.blit(fo.render(M("dil_sec"),True,(220,230,255)),(sx(50),sy(388)))
         neon_btn(ekran,BTN_TR,"TR",fo,BTN_TR.collidepoint(fare) or dil=="TR",
@@ -589,16 +632,12 @@ while True:
         neon_btn(ekran,BTN_EN,"EN",fo,BTN_EN.collidepoint(fare) or dil=="EN",
                  accent=tv["accent"] if dil=="EN" else (100,120,160))
 
-        if not os.path.exists(MUZIK_DOSYA):
-            nt=fk.render(M("muzik_yok"),True,(180,100,100))
-            ekran.blit(nt,nt.get_rect(center=(CX,sy(495))))
-
     # ── MAĞAZA ───────────────────────────────────────────────────────────────
     elif oyun_durumu=="SHOP":
         glass(ekran,(0,0,W,sy(195)),a=70,renk=(20,20,40))
         bt=fb.render(M("magaza_baslik"),True,(240,245,255))
         ekran.blit(bt,bt.get_rect(center=(CX,sy(90))))
-        ct=fo.render(f"◈  {coin} Coin",True,tv["accent"])
+        ct=fo.render(f"*  {coin} Coin",True,tv["accent"])
         ekran.blit(ct,ct.get_rect(center=(CX,sy(145))))
         neon_btn(ekran,BTN_GERI,M("geri"),fk,BTN_GERI.collidepoint(fare),accent=tv["accent"])
 
@@ -620,31 +659,29 @@ while True:
             ekran.blit(fk.render(tid,True,(240,245,255)),(row.x+sc(70),row.y+sc(15)))
             if iak:   d,dc=M("aktif"),tv2["accent"]
             elif tv2["satin"]: d,dc=M("sec"),(180,200,255)
-            else:     d,dc=f"◈ {tv2['fiyat']:,}",tv2["accent"]
+            else:     d,dc=f"* {tv2['fiyat']:,}",tv2["accent"]
             dt=fk.render(d,True,dc)
             ekran.blit(dt,dt.get_rect(midright=(row.right-sc(15),row.centery)))
         ekran.set_clip(None)
         sh=pygame.Surface((W,sy(40)),pygame.SRCALPHA)
-        for yy in range(sy(40)): pygame.draw.line(sh,(0,0,0,int(150*yy/sy(40))),(0,yy),(W,yy))
+        for yy in range(sy(40)): pygame.draw.line(sh,(0,0,0,int(150*yy/max(1,sy(40)))),(0,yy),(W,yy))
         ekran.blit(sh,(0,sy(200)))
         sh2=pygame.Surface((W,sy(40)),pygame.SRCALPHA)
-        for yy in range(sy(40)): pygame.draw.line(sh2,(0,0,0,int(150*(1-yy/sy(40)))),(0,yy),(W,yy))
+        for yy in range(sy(40)): pygame.draw.line(sh2,(0,0,0,int(150*(1-yy/max(1,sy(40))))),(0,yy),(W,yy))
         ekran.blit(sh2,(0,sy(735)))
 
     # ── OYUN & GAME OVER ─────────────────────────────────────────────────────
     elif oyun_durumu in ("GAME","GAME_OVER"):
-        # HUD
         glass(ekran,(IZG_X-sc(5),sy(20),IZG_W+sc(10),sy(55)),a=50,renk=(255,255,255),r=sc(14))
-        ekran.blit(fk.render(f"⬆ {rekor}",True,(180,190,220)),(IZG_X+sc(5),sy(38)))
-        ct=fk.render(f"◈ {coin}",True,tv["accent"])
+        ekran.blit(fk.render(f"Best {rekor}",True,(180,190,220)),(IZG_X+sc(5),sy(38)))
+        ct=fk.render(f"* {coin}",True,tv["accent"])
         ekran.blit(ct,ct.get_rect(midright=(IZG_X+IZG_W-sc(5),sy(48))))
 
-        # XP bar
         bx2,by4,bw,bh=IZG_X,sy(82),IZG_W,sc(14)
         glass(ekran,(bx2-sc(2),by4-sc(2),bw+sc(4),bh+sc(4)),a=40,renk=(200,220,255),r=sc(8))
         xpr=min(1.0,xp/max(1,xp_gereken(level)))
         if xpr>0:
-            dw=int(bw*xpr)
+            dw=max(1,int(bw*xpr))
             ds=pygame.Surface((dw,bh),pygame.SRCALPHA)
             grad_rect(ds,(0,0,dw,bh),tv["b1"],tv["glow"],dikey=False)
             ds.set_alpha(220); ekran.blit(ds,(bx2,by4))
@@ -652,7 +689,6 @@ while True:
         xt=fk.render(f"{xp}/{xp_gereken(level)} XP",True,(160,170,200))
         ekran.blit(xt,xt.get_rect(right=bx2+bw,top=by4+bh+sc(3)))
 
-        # Level UP anim
         if level_up_goster:
             lg=su-level_up_t
             if lg<2.0:
@@ -661,16 +697,14 @@ while True:
                 ekran.blit(ls,ls.get_rect(center=(CX,ly)))
             else: level_up_goster=False
 
-        # Skor
         ai=min(1.0,(su-skor_anim_t)/0.35)
-        sf=int(sc(68)+(1-ai)*sc(18))
+        sf=max(1, int(sc(68)+(1-ai)*sc(18)))
         sfnt=pygame.font.Font(None,sf)
         ss=sfnt.render(str(skor),True,(255,255,255))
         gs2=sfnt.render(str(skor),True,tv["glow"]); gs2.set_alpha(80)
         ekran.blit(gs2,gs2.get_rect(center=(CX+2,IZG_Y-sc(55)+2)))
         ekran.blit(ss,ss.get_rect(center=(CX,IZG_Y-sc(55))))
 
-        # Izgara arka planı
         sh3=pygame.Surface((IZG_W+sc(20),IZG_W+sc(20)),pygame.SRCALPHA)
         pygame.draw.rect(sh3,(0,0,0,80),(0,0,IZG_W+sc(20),IZG_W+sc(20)),border_radius=sc(12))
         ekran.blit(sh3,(IZG_X-sc(10),IZG_Y-sc(5)))
@@ -687,7 +721,6 @@ while True:
                     pygame.draw.rect(bg,(255,255,255,30),(0,0,KARE,KARE),1)
                     ekran.blit(bg,(kx,ky))
 
-        # Patlama animasyonları
         for pat in list(aktif_patlamalar):
             gp=su-pat["t0"]
             if gp>0.45: aktif_patlamalar.remove(pat); continue
@@ -705,7 +738,6 @@ while True:
 
         parca_ciz(ekran)
 
-        # Alt blok paneli
         glass(ekran,(sc(10),sy(625),W-sc(20),sy(145)),a=45,ba=70,renk=(200,220,255),r=sc(18))
 
         for b in alttaki:
@@ -716,7 +748,6 @@ while True:
                     if b["sekil"][dr][dc]:
                         draw_cube(ekran,b["x"]+dc*k2,b["y"]+dr*k2,k2,b["r1"],b["r2"],b["glow"],tutuldu=b["tutuldu"])
 
-        # Önizleme
         if oyun_durumu=="GAME" and secilen and secilen["tutuldu"]:
             pc=round((secilen["x"]-IZG_X)/KARE)
             pr2=round((secilen["y"]-IZG_Y)/KARE)
@@ -744,8 +775,8 @@ while True:
         bt2=fd.render(M("bitti"),True,(239,68,68))
         ekran.blit(bg2,bg2.get_rect(center=(CX+sc(3),sy(313))))
         ekran.blit(bt2,bt2.get_rect(center=(CX,sy(310))))
-        ekran.blit(fo.render(f"{M('skor')}: {skor}",True,(220,225,255)),
-                   fo.render(f"{M('skor')}: {skor}",True,(220,225,255)).get_rect(center=(CX,sy(400))))
+        skr_txt=fo.render(f"{M('skor')}: {skor}",True,(220,225,255))
+        ekran.blit(skr_txt,skr_txt.get_rect(center=(CX,sy(400))))
         rg=fo.render(f"{M('en_iyi')}: {rekor}",True,tv["accent"])
         ekran.blit(rg,rg.get_rect(center=(CX,sy(445))))
         neon_btn(ekran,BTN_LOBI,M("lobiye_don"),fo,BTN_LOBI.collidepoint(fare),accent=tv["accent"])
